@@ -1,0 +1,9 @@
+{
+  "name": "Cigar Cost Calculator",
+  "short_name": "Cigar Calc",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f1ec",
+  "theme_color": "#211c18",
+  "icons": []
+}

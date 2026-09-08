@@ -1,0 +1,1 @@
+const CACHE='cigar-calc-v1';self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./','./index.html','./manifest.webmanifest']))));self.addEventListener('fetch',e=>{if(e.request.url.includes('openrate.live'))return;e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})
