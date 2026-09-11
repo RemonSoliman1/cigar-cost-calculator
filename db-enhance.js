@@ -1,10 +1,102 @@
 'use strict';
 
-// Cigar Database UX enhancement: searchable cards + detailed purchase history modal.
+// Cigar Database UX enhancement: searchable cards + detailed purchase history modal + smart cigar matching.
 (function () {
   const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const money2 = x => Number(x || 0).toLocaleString(undefined, {maximumFractionDigits:2}) + ' EGP';
-  const norm2 = s => String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+  const norm2 = s => String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();
+
+  // More tolerant than the original word-overlap matcher. It handles typos,
+  // abbreviations and reordered words while still avoiding aggressive matches.
+  function levenshtein(a,b){
+    a=norm2(a); b=norm2(b);
+    if(a===b)return 0; if(!a)return b.length; if(!b)return a.length;
+    let prev=Array.from({length:b.length+1},(_,i)=>i);
+    for(let i=1;i<=a.length;i++){
+      const cur=[i];
+      for(let j=1;j<=b.length;j++) cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+      prev=cur;
+    }
+    return prev[b.length];
+  }
+  function tokenScore(a,b){
+    const A=norm2(a).split(' ').filter(Boolean),B=norm2(b).split(' ').filter(Boolean);
+    if(!A.length||!B.length)return 0;
+    let matched=0;
+    for(const x of A){
+      let best=0;
+      for(const y of B){
+        if(x===y){best=1;break;}
+        const d=levenshtein(x,y), mx=Math.max(x.length,y.length);
+        if(mx>=3) best=Math.max(best,1-d/mx);
+        if(x.length>=3&&y.startsWith(x.slice(0,Math.max(2,x.length-1)))) best=Math.max(best,.86);
+        if(y.length>=3&&x.startsWith(y.slice(0,Math.max(2,y.length-1)))) best=Math.max(best,.86);
+      }
+      matched+=best;
+    }
+    return matched/Math.max(A.length,B.length);
+  }
+  function smartScore(query,c){
+    const q=norm2(query), name=norm2(c.name), vit=norm2(c.vitola||'');
+    if(!q||!name)return 0;
+    if(q===name)return 1;
+    const qTokens=q.split(' '), nTokens=name.split(' ');
+    const overlap=qTokens.filter(t=>nTokens.includes(t)).length/Math.max(qTokens.length,nTokens.length);
+    const token=tokenScore(q,name);
+    const compact=1-(levenshtein(q,name)/Math.max(q.length,name.length));
+    const vitBonus=vit&&qTokens.some(t=>t.length>2&&vit.includes(t))?.06:0;
+    return Math.min(1,.52*token+.30*compact+.18*overlap+vitBonus);
+  }
+  function smartMatches(query){
+    const cs=typeof allCigars==='function'?allCigars():[];
+    return cs.map(c=>({...c,s:smartScore(query,c)})).filter(c=>c.s>=.38).sort((a,b)=>b.s-a.s).slice(0,6);
+  }
+
+  function addSmartMatcher(){
+    const input=document.getElementById('cigar'), box=document.getElementById('suggest');
+    if(!input||!box)return;
+    const render=()=>{
+      const q=input.value.trim();
+      if(!q){box.classList.add('hidden');return;}
+      const found=smartMatches(q);
+      box.innerHTML=found.length ? found.map((c,i)=>{
+        const confidence=c.s>=.86?'Strong match':c.s>=.68?'Likely match':'Possible match';
+        return `<div data-smart-id="${esc(c.id)}" style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span><b>${esc(c.name)}</b><span class="muted">${c.vitola?' · '+esc(c.vitola):''}</span></span><span class="pill">${confidence}</span></div>`;
+      }).join('') : `<div><b>New cigar</b><span class="muted"> No close saved match — this name will be learned when you save the purchase.</span></div>`;
+      box.classList.remove('hidden');
+      box.querySelectorAll('[data-smart-id]').forEach(row=>row.addEventListener('click',()=>{
+        const c=(typeof allCigars==='function'?allCigars():[]).find(x=>String(x.id)===String(row.dataset.smartId));
+        if(!c)return;
+        input.value=c.name;
+        const v=document.getElementById('vitola');
+        if(v&&!v.value&&c.vitola)v.value=c.vitola;
+        box.classList.add('hidden');
+        if(typeof showPriceHistory==='function')showPriceHistory();
+      }));
+    };
+    // The original app listener remains active; this listener deliberately runs
+    // after it and replaces its suggestions with the more tolerant matcher.
+    input.addEventListener('input',render);
+    input.addEventListener('focus',()=>{if(input.value.trim())render()});
+    input.addEventListener('blur',()=>{
+      setTimeout(()=>{
+        const q=input.value.trim(); if(!q)return;
+        const found=smartMatches(q);
+        // Only auto-correct when confidence is high and the best result is
+        // clearly ahead of the runner-up. Ambiguous names are left untouched.
+        const best=found[0], second=found[1];
+        if(best && best.s>=.88 && (!second || best.s-second.s>=.10) && norm2(q)!==norm2(best.name)){
+          input.value=best.name;
+          const v=document.getElementById('vitola');
+          if(v&&!v.value&&best.vitola)v.value=best.vitola;
+          if(typeof showPriceHistory==='function')showPriceHistory();
+          box.innerHTML=`<div><b>✓ Matched to ${esc(best.name)}</b><span class="muted"> · saved cigar</span></div>`;
+          box.classList.remove('hidden');
+          setTimeout(()=>box.classList.add('hidden'),2200);
+        }
+      },120);
+    });
+  }
 
   function addModal() {
     if (document.getElementById('cigarDetailModal')) return;
@@ -53,6 +145,5 @@
   };
   window.openCigarDetail = openDetail;
   addModal();
-  // app.js performs its initial render before this file loads; render again with the enhanced UI.
-  if (document.readyState !== 'loading') renderDB(); else document.addEventListener('DOMContentLoaded', renderDB);
+  if (document.readyState !== 'loading') { renderDB(); addSmartMatcher(); } else document.addEventListener('DOMContentLoaded',()=>{ renderDB(); addSmartMatcher(); });
 })();
