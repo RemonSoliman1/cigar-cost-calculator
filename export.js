@@ -33,7 +33,7 @@
     orders.forEach((o,oi)=>{
       const orderId=o.id||`order-${oi+1}`;
       (o.items||[]).forEach(x=>rows.push([
-        o.created_at||o.date||'',orderId,x.cigar_name_snapshot||x.name||x.label||'',x.vitola_snapshot||x.vitola||'',num(x.quantity||x.qty),moneyCsv(x.price_per_stick_egp||x.price||x.per),moneyCsv(o.total_egp||o.total||''),num(o.usdt_egp_rate||x.rate).toFixed(2),(o.rate_source||x.rateSource||'live')==='manual'?'Manual':'Live',x.allocation_mode||''
+        o.created_at||o.date||'',orderId,o.supplier||'',x.cigar_name_snapshot||x.name||x.label||'',x.vitola_snapshot||x.vitola||'',num(x.quantity||x.qty),moneyCsv(x.price_per_stick_egp||x.price||x.per),moneyCsv(o.calculated_total_egp??o.total_egp??o.total??''),moneyCsv(o.actual_total_egp??o.total_egp??o.total??''),moneyCsv(o.delivery_fee_usd||0),moneyCsv(o.other_fees_usd||0),num(o.usdt_egp_rate||x.rate).toFixed(2),(o.rate_source||x.rateSource||'live')==='manual'?'Manual':'Live',x.allocation_mode||'',x.image_url||''
       ]));
     });
     // Local cigar histories may contain purchases that are not represented as order objects.
