@@ -1,4 +1,4 @@
-const CACHE='cigar-calc-v5';
+const CACHE='cigar-calc-v6';
 const APP_SHELL=['./','./index.html','./manifest.webmanifest'];
 
 self.addEventListener('install',event=>{
@@ -20,6 +20,8 @@ self.addEventListener('fetch',event=>{
   const url=new URL(event.request.url);
   if(url.pathname.startsWith('/api/')) return;
   if(event.request.method!=='GET') return;
+  // Check for a newer service worker whenever the installed PWA is opened.
+  if(url.pathname==='/'||url.pathname.endsWith('/index.html')) event.waitUntil(self.registration.update());
 
   // Always try the network first for the app itself so GitHub/Vercel updates
   // are reflected in the installed PWA instead of leaving users on an old UI.
