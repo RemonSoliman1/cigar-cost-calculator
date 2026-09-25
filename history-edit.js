@@ -11,7 +11,92 @@
   function norm(s){return String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}
   async function ensureCigar(name,vitola){const nn=norm(name),key=nn+'|'+norm(vitola||'');const {data,error}=await sb.from('cigars').upsert({user_id:user.id,name:name,normalized_name:nn,normalized_key:key,vitola:vitola||''},{onConflict:'user_id,normalized_key'}).select().single();if(error)throw error;return data}
   async function uploadItemImage(file,orderId,itemId){if(!file)return null;if(file.size>5*1024*1024)throw new Error('Image must be 5 MB or smaller.');const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';const path=user.id+'/'+orderId+'/'+(itemId||crypto.randomUUID())+'.'+ext;const {error}=await sb.storage.from('cigar-images').upload(path,file,{cacheControl:'31536000',upsert:true,contentType:file.type});if(error)throw error;const {data}=sb.storage.from('cigar-images').getPublicUrl(path);return data.publicUrl}
-  async function save(){if(!current||!user)return;for(const x of current.items){if(!String(x.cigar_name_snapshot||'').trim())return alert('Every item needs a cigar/item name.');if(Number(x.quantity)<=0)return alert('Quantity must be at least 1.');if(Number(x.price_per_stick_egp)<0)return alert('Price cannot be negative.')}if(!current.items.length)return deleteOrder(current.order.id,true);const q=current.items.reduce((s,x)=>s+Number(x.quantity||0),0),itemsTotal=current.items.reduce((s,x)=>s+Number(x.quantity||0)*Number(x.price_per_stick_egp||0),0),calculated=Number($('editCalculated')?.value||itemsTotal),actual=Number($('editActual')?.value||calculated),supplier=String($('editSupplier')?.value||'').trim(),delivery=Number($('editDelivery')?.value||0),otherFees=Number($('editOtherFees')?.value||0),notes=String($('editNotes')?.value||'').trim();if(actual<0)return alert('Actual amount paid cannot be negative.');let orderImageUrl=current.order.order_image_url||null;const orderImageFile=$('editOrderPicture')?.files?.[0];if(orderImageFile)orderImageUrl=await uploadItemImage(orderImageFile,current.order.id,'order');const {error:oe}=await sb.from('orders').update({order_image_url:orderImageUrl,total_cigars:q,total_egp:actual,average_per_stick_egp:q?actual/q:0,calculated_total_egp:calculated,actual_total_egp:actual,supplier,delivery_fee_usd:delivery,other_fees_usd:otherFees,notes}).eq('id',current.order.id).eq('user_id',user.id);if(oe)return alert('Could not update order: '+oe.message);const {error:de}=await sb.from('order_items').delete().eq('order_id',current.order.id).eq('user_id',user.id);if(de)return alert('Could not replace order items: '+de.message);const rows=[];const ph=[];for(const x of current.items){const c=await ensureCigar(String(x.cigar_name_snapshot).trim(),String(x.vitola_snapshot||'').trim());let imageUrl=x.image_url||null;if(x._imageFile)imageUrl=await uploadItemImage(x._imageFile,current.order.id,x.id);rows.push({order_id:current.order.id,user_id:user.id,cigar_id:c.id,cigar_name_snapshot:String(x.cigar_name_snapshot).trim(),vitola_snapshot:String(x.vitola_snapshot||'').trim(),quantity:Number(x.quantity),price_per_stick_egp:Number(x.price_per_stick_egp),allocation_mode:x.allocation_mode==='automatic'?'automatic':'manual',image_url:imageUrl});ph.push({user_id:user.id,cigar_id:c.id,order_id:current.order.id,purchased_at:current.order.created_at,quantity:Number(x.quantity),price_per_stick_egp:Number(x.price_per_stick_egp),order_total_egp:actual,usdt_egp_rate:current.order.usdt_egp_rate,rate_source:current.order.rate_source,image_url:imageUrl,vitola_snapshot:String(x.vitola_snapshot||'').trim()})}const {error:ie}=await sb.from('order_items').insert(rows);if(ie)return alert('Order updated, but items could not be restored: '+ie.message);const {error:hd}=await sb.from('cigar_price_history').delete().eq('order_id',current.order.id).eq('user_id',user.id);if(hd)return alert('Order updated, but price history could not be refreshed: '+hd.message);const {error:he}=await sb.from('cigar_price_history').insert(ph);if(he)return alert('Order updated, but price history could not be restored: '+he.message);const {data:freshOrder,error:foe}=await sb.from('orders').select('*').eq('id',current.order.id).eq('user_id',user.id).single();if(foe)return alert('Order was saved, but could not refresh it: '+foe.message);current.order=freshOrder;close();if(typeof loadCloud==='function')await loadCloud();else location.reload();alert('Order updated successfully.')}
+  let saving=false;
+  async function save(){
+    if(!current||!user||saving)return;
+    const saveBtn=$('editSaveOrder');
+    saving=true;
+    if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving…';}
+    try{
+      for(const x of current.items){
+        if(!String(x.cigar_name_snapshot||'').trim())throw new Error('Every item needs a cigar/item name.');
+        if(Number(x.quantity)<=0)throw new Error('Quantity must be at least 1.');
+        if(Number(x.price_per_stick_egp)<0)throw new Error('Price cannot be negative.');
+      }
+      if(!current.items.length){await deleteOrder(current.order.id,true);return;}
+      const q=current.items.reduce((s,x)=>s+Number(x.quantity||0),0);
+      const itemsTotal=current.items.reduce((s,x)=>s+Number(x.quantity||0)*Number(x.price_per_stick_egp||0),0);
+      const calculated=Number($('editCalculated')?.value||itemsTotal);
+      const actual=Number($('editActual')?.value||calculated);
+      const supplier=String($('editSupplier')?.value||'').trim();
+      const delivery=Number($('editDelivery')?.value||0);
+      const otherFees=Number($('editOtherFees')?.value||0);
+      const notes=String($('editNotes')?.value||'').trim();
+      if(actual<0)throw new Error('Actual amount paid cannot be negative.');
+
+      let orderImageUrl=current.order.order_image_url||null;
+      const orderImageFile=$('editOrderPicture')?.files?.[0];
+      if(orderImageFile)orderImageUrl=await uploadItemImage(orderImageFile,current.order.id,'order');
+
+      const rows=[];
+      const ph=[];
+      for(const x of current.items){
+        const c=await ensureCigar(String(x.cigar_name_snapshot).trim(),String(x.vitola_snapshot||'').trim());
+        let imageUrl=x.image_url||null;
+        if(x._imageFile)imageUrl=await uploadItemImage(x._imageFile,current.order.id,x.id||c.id);
+        rows.push({
+          cigar_id:c.id,
+          cigar_name_snapshot:String(x.cigar_name_snapshot).trim(),
+          vitola_snapshot:String(x.vitola_snapshot||'').trim(),
+          quantity:Number(x.quantity),
+          price_per_stick_egp:Number(x.price_per_stick_egp),
+          allocation_mode:x.allocation_mode==='automatic'?'automatic':'manual',
+          image_url:imageUrl
+        });
+        ph.push({
+          cigar_id:c.id,
+          purchased_at:current.order.created_at,
+          quantity:Number(x.quantity),
+          price_per_stick_egp:Number(x.price_per_stick_egp),
+          order_total_egp:actual,
+          usdt_egp_rate:current.order.usdt_egp_rate,
+          rate_source:current.order.rate_source,
+          image_url:imageUrl,
+          vitola_snapshot:String(x.vitola_snapshot||'').trim()
+        });
+      }
+
+      const {error}=await sb.rpc('replace_order_contents',{
+        p_order_id:current.order.id,
+        p_user_id:user.id,
+        p_total_cigars:q,
+        p_total_egp:actual,
+        p_average_per_stick_egp:q?actual/q:0,
+        p_calculated_total_egp:calculated,
+        p_actual_total_egp:actual,
+        p_supplier:supplier,
+        p_delivery_fee_usd:delivery,
+        p_other_fees_usd:otherFees,
+        p_notes:notes,
+        p_order_image_url:orderImageUrl,
+        p_items:rows,
+        p_history:ph
+      });
+      if(error)throw error;
+
+      const {data:freshOrder,error:foe}=await sb.from('orders').select('*').eq('id',current.order.id).eq('user_id',user.id).single();
+      if(foe)throw foe;
+      current.order=freshOrder;
+      close();
+      if(typeof loadCloud==='function')await loadCloud();else location.reload();
+      alert('Order updated successfully.');
+    }catch(e){
+      alert('Could not save order: '+(e?.message||e));
+    }finally{
+      saving=false;
+      if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='Save changes';}
+    }
+  }
   async function deleteOrder(id,confirmed){if(!user)return alert('Log in to edit cloud order history.');if(!confirmed&&!confirm('Delete this entire order and its purchase history? This cannot be undone.'))return;const {error:e1}=await sb.from('cigar_price_history').delete().eq('order_id',id).eq('user_id',user.id);if(e1)return alert('Could not delete purchase history: '+e1.message);const {error:e2}=await sb.from('order_items').delete().eq('order_id',id).eq('user_id',user.id);if(e2)return alert('Could not delete order items: '+e2.message);const {error:e3}=await sb.from('orders').delete().eq('id',id).eq('user_id',user.id);if(e3)return alert('Could not delete order: '+e3.message);close();alert('Order deleted.');if(typeof loadCloud==='function')await loadCloud();else location.reload()}
   async function refresh(){if(!user)return;const {data,error}=await sb.from('orders').select('*').eq('user_id',user.id).order('created_at',{ascending:false});if(!error)orders=data||[]}
   addStyles();addModal();window.editCloudOrder=open;window.deleteCloudOrder=deleteOrder;window.__orderEditorReady=true;document.addEventListener('click',async e=>{const edit=e.target.closest('[data-edit-cloud],[data-edit-order]');if(edit){e.preventDefault();e.stopImmediatePropagation();const id=edit.dataset.editCloud||edit.dataset.editOrder;try{await open(id)}catch(err){alert('Could not open order editor: '+(err?.message||err))}return}const del=e.target.closest('[data-delete-cloud],[data-delete-order]');if(del){e.preventDefault();e.stopImmediatePropagation();const id=del.dataset.deleteCloud||del.dataset.deleteOrder;try{await deleteOrder(id)}catch(err){alert('Could not delete order: '+(err?.message||err))}}},true);setTimeout(refresh,100);window.refreshOrderHistoryEditors=refresh;
