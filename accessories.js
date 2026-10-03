@@ -23,7 +23,7 @@
 
   function reset(){
     ['accName','accBrand','accModel','accKeywords','accColor','accSupplier','accUrl','accNotes'].forEach(id=>a$(id).value='');
-    a$('accCategory').value='Cutter';
+    a$('accCategory').value='Cutter'; a$('accDate').value=new Date().toISOString().slice(0,10);
     a$('accQty').value='1'; a$('accUnit').value=''; a$('accFees').value='0'; a$('accTotalUsd').value=''; a$('accRate').value=(typeof rate==='number'&&rate>0?rate:'');
     a$('accPicture').value=''; A.imageFile=null; A.editing=null;
     a$('accSave').textContent='＋ Add accessory';
@@ -87,7 +87,7 @@
   function edit(id){
     const x=A.items.find(v=>v.id===id);if(!x)return;
     A.editing=id;
-    a$('accName').value=x.name||'';a$('accCategory').value=x.category||'Other';a$('accBrand').value=x.brand||'';a$('accModel').value=x.model||'';
+    a$('accName').value=x.name||'';a$('accDate').value=(x.purchased_at||'').slice(0,10)||new Date().toISOString().slice(0,10);a$('accCategory').value=x.category||'Other';a$('accBrand').value=x.brand||'';a$('accModel').value=x.model||'';
     a$('accKeywords').value=x.keywords||'';a$('accColor').value=x.color||'';a$('accQty').value=x.quantity||1;a$('accUnit').value=x.unit_price_usd||0;a$('accFees').value=x.fees_usd||0;
     a$('accTotalUsd').value=x.total_paid_usd||0;a$('accRate').value=x.usdt_egp_rate||'';a$('accSupplier').value=x.supplier||'';a$('accUrl').value=x.product_url||'';a$('accNotes').value=x.notes||'';
     a$('accPicture').value='';A.imageFile=null;a$('accSave').textContent='✓ Update accessory';a$('accCancel').classList.remove('hidden');calc();a$('accessories').scrollIntoView({behavior:'smooth'});
@@ -97,7 +97,7 @@
     if(!user)return alert('Log in to save accessories to your cloud database.');
     const name=a$('accName').value.trim();if(!name)return alert('Enter an accessory name.');
     const c=calc();if(c.r<=0)return alert('Enter the USDT/EGP rate.');
-    const payload={user_id:user.id,name,normalized_name:anorm(name),category:a$('accCategory').value,brand:a$('accBrand').value.trim(),model:a$('accModel').value.trim(),keywords:a$('accKeywords').value.trim(),color:a$('accColor').value.trim(),quantity:c.qty,unit_price_usd:c.unit,fees_usd:c.fees,total_paid_usd:c.totalUsd,usdt_egp_rate:c.r,total_paid_egp:c.totalEgp,supplier:a$('accSupplier').value.trim(),product_url:a$('accUrl').value.trim(),notes:a$('accNotes').value.trim()};
+    const payload={user_id:user.id,purchased_at:(a$('accDate').value?new Date(a$('accDate').value+'T12:00:00').toISOString():new Date().toISOString()),name,normalized_name:anorm(name),category:a$('accCategory').value,brand:a$('accBrand').value.trim(),model:a$('accModel').value.trim(),keywords:a$('accKeywords').value.trim(),color:a$('accColor').value.trim(),quantity:c.qty,unit_price_usd:c.unit,fees_usd:c.fees,total_paid_usd:c.totalUsd,usdt_egp_rate:c.r,total_paid_egp:c.totalEgp,supplier:a$('accSupplier').value.trim(),product_url:a$('accUrl').value.trim(),notes:a$('accNotes').value.trim()};
     const btn=a$('accSave');btn.disabled=true;btn.textContent='Saving…';
     try{
       if(A.editing){
