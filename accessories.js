@@ -79,7 +79,7 @@
     a$('accGroups').innerHTML=groupRows||'<div class="muted">No matching accessories yet.</div>';
     a$('accHistory').innerHTML=rows||'<div class="muted" style="padding:18px;text-align:center">No accessory purchases yet.</div>';
     const totalQty=list.reduce((s,x)=>s+(+x.quantity||0),0),totalPaid=list.reduce((s,x)=>s+(+x.total_paid_egp||0),0);
-    a$('accCount').textContent=String(totalQty);a$('accSpent').textContent=fmtEGP(totalPaid);
+    a$('accCount').textContent=String(totalQty);a$('accSpent').textContent=fmtEGP(totalPaid);a$('accPurchaseCount').textContent=String(list.length);
     a$('accHistory').querySelectorAll('[data-acc-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.accEdit));
     a$('accHistory').querySelectorAll('[data-acc-delete]').forEach(b=>b.onclick=()=>remove(b.dataset.accDelete));
   }
@@ -139,7 +139,7 @@
   ['orderTab','historyTab','dbTab'].forEach(id=>a$(id).addEventListener('click',hideTab));
   ['accQty','accUnit','accFees','accTotalUsd','accRate'].forEach(id=>a$(id).addEventListener('input',calc));
   a$('accPicture').onchange=()=>{A.imageFile=a$('accPicture').files?.[0]||null};
-  a$('accSearch').oninput=render;a$('accSave').onclick=save;a$('accCancel').onclick=reset;a$('accCsv').onclick=csv;
+  a$('accSearch').oninput=render;a$('accSave').onclick=save;a$('accWebSearch').onclick=()=>{const q=[a$('accCategory').value,a$('accKeywords').value,a$('accColor').value].filter(Boolean).join(' ');if(!q)return alert('Enter keywords and/or a color first.');window.open('https://www.google.com/search?tbm=shop&q='+encodeURIComponent(q),'_blank','noopener');};a$('accCancel').onclick=reset;a$('accCsv').onclick=csv;
   if(sb){
     sb.auth.onAuthStateChange((_event,session)=>{if(session?.user){setTimeout(load,0)}else{A.items=[];render()}});
     sb.auth.getUser().then(({data})=>{if(data.user)setTimeout(load,0)});
