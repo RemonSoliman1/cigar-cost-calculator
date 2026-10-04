@@ -1,4 +1,4 @@
-const CACHE='cigar-calc-v17';
+const CACHE='cigar-calc-v18';
 const APP_SHELL=['./','./index.html','./manifest.webmanifest'];
 
 self.addEventListener('install',event=>{
