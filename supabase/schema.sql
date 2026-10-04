@@ -126,3 +126,42 @@ $$;
 
 drop trigger if exists cigars_set_updated_at on public.cigars;
 create trigger cigars_set_updated_at before update on public.cigars for each row execute function public.set_updated_at();
+
+
+-- Multi-photo order editor RPC.
+drop function if exists public.replace_order_contents(uuid,uuid,integer,numeric,numeric,numeric,numeric,text,numeric,numeric,text,text,jsonb,jsonb);
+create or replace function public.replace_order_contents(
+  p_order_id uuid, p_user_id uuid, p_total_cigars integer, p_total_egp numeric,
+  p_average_per_stick_egp numeric, p_calculated_total_egp numeric, p_actual_total_egp numeric,
+  p_supplier text, p_delivery_fee_usd numeric, p_other_fees_usd numeric, p_notes text,
+  p_order_image_urls jsonb, p_items jsonb, p_history jsonb
+) returns void language plpgsql set search_path to 'public' as $function$
+begin
+  if auth.uid() is null or auth.uid() <> p_user_id then raise exception 'Not authorized'; end if;
+  if not exists (select 1 from public.orders where id=p_order_id and user_id=p_user_id) then raise exception 'Order not found'; end if;
+  update public.orders set total_cigars=p_total_cigars,total_egp=p_total_egp,
+    average_per_stick_egp=p_average_per_stick_egp,calculated_total_egp=p_calculated_total_egp,
+    actual_total_egp=p_actual_total_egp,total_adjustment_egp=p_actual_total_egp-p_calculated_total_egp,
+    supplier=coalesce(p_supplier,''),delivery_fee_usd=coalesce(p_delivery_fee_usd,0),
+    other_fees_usd=coalesce(p_other_fees_usd,0),notes=coalesce(p_notes,''),
+    order_image_urls=coalesce(p_order_image_urls,'[]'::jsonb),
+    order_image_url=nullif(coalesce(p_order_image_urls->>0,''),'')
+  where id=p_order_id and user_id=p_user_id;
+  delete from public.cigar_price_history where order_id=p_order_id and user_id=p_user_id;
+  delete from public.order_items where order_id=p_order_id and user_id=p_user_id;
+  if jsonb_array_length(coalesce(p_items,'[]'::jsonb))>0 then
+    insert into public.order_items(order_id,user_id,cigar_id,cigar_name_snapshot,vitola_snapshot,quantity,price_per_stick_egp,allocation_mode,image_url,image_urls)
+    select p_order_id,p_user_id,nullif(x.cigar_id,'')::uuid,x.cigar_name_snapshot,coalesce(x.vitola_snapshot,''),
+      x.quantity,x.price_per_stick_egp,case when x.allocation_mode='automatic' then 'automatic' else 'manual' end,
+      nullif(coalesce(x.image_urls->>0,''),''),coalesce(x.image_urls,'[]'::jsonb)
+    from jsonb_to_recordset(p_items) as x(cigar_id text,cigar_name_snapshot text,vitola_snapshot text,quantity integer,price_per_stick_egp numeric,allocation_mode text,image_urls jsonb);
+  end if;
+  if jsonb_array_length(coalesce(p_history,'[]'::jsonb))>0 then
+    insert into public.cigar_price_history(user_id,cigar_id,order_id,purchased_at,quantity,price_per_stick_egp,order_total_egp,usdt_egp_rate,rate_source,image_url,vitola_snapshot)
+    select p_user_id,nullif(x.cigar_id,'')::uuid,p_order_id,x.purchased_at::timestamptz,x.quantity,x.price_per_stick_egp,
+      x.order_total_egp,x.usdt_egp_rate,case when x.rate_source='manual' then 'manual' else 'live' end,
+      nullif(coalesce(x.image_urls->>0,''),''),coalesce(x.vitola_snapshot,'')
+    from jsonb_to_recordset(p_history) as x(cigar_id text,purchased_at text,quantity integer,price_per_stick_egp numeric,order_total_egp numeric,usdt_egp_rate numeric,rate_source text,image_urls jsonb,vitola_snapshot text);
+  end if;
+end;
+$function$;
