@@ -1,60 +1,28 @@
 'use strict';
-
-// CSV export tools for the current order and the complete cigar purchase history.
-(function () {
-  const num = v => Number(v || 0);
-  const moneyCsv = v => num(v).toFixed(2);
-  const csvCell = value => { const s=String(value ?? ''); return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
-  const makeCsv = rows => '\ufeff' + rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
-  const downloadCsv = (filename,rows) => { const blob=new Blob([makeCsv(rows)],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
-  const stamp=()=>new Date().toISOString().slice(0,10);
-
-  function getCurrentItems(){ try{return Array.isArray(items)?items:[];}catch(e){return [];} }
-  function getOrders(){ try{return user&&Array.isArray(cloudOrders)?cloudOrders:(local&&Array.isArray(local.orders)?local.orders:[]);}catch(e){return [];} }
-  function getCigars(){ try{return user&&Array.isArray(cloudCigars)?cloudCigars:(local&&Array.isArray(local.cigars)?local.cigars:[]);}catch(e){return [];} }
-
-  function exportCurrentOrder(){
-    const its=getCurrentItems();
-    if(!its.length)return alert('There are no items in the current order to export.');
-    const rows=[['Order Item','Cigar / Item','Vitola / Size','Quantity','Original USD','7% Tax USD','Quantity Fee USD','Box Fee USD','Total USD','Total EGP','Price / Stick EGP','USDT/EGP Rate','Rate Source','Allocation']];
-    its.forEach((it,i)=>{
-      const allocations=Array.isArray(it.alloc)&&it.alloc.length?it.alloc:[{name:it.cigar||'',vitola:it.vitola||'',qty:it.q,price:it.per}];
-      const allocationText=allocations.map(a=>`${a.name||'Unnamed'}${a.vitola?' · '+a.vitola:''} × ${a.qty} @ ${moneyCsv(a.price)} EGP`).join(' | ');
-      rows.push([i+1,it.cigar||it.label||'',it.vitola||'',it.q,moneyCsv(it.p),moneyCsv(it.tax),moneyCsv(it.f),moneyCsv(it.b),moneyCsv(it.u),moneyCsv(it.total),moneyCsv(it.per),num(it.rate).toFixed(2),it.rateSource==='manual'?'Manual':'Live',allocationText]);
-    });
-    const q=its.reduce((s,x)=>s+num(x.q),0), total=its.reduce((s,x)=>s+num(x.total),0);
-    rows.push([]); rows.push(['ORDER TOTAL','','',q,'','','','','',moneyCsv(total),moneyCsv(q?total/q:0),'','','']);
-    downloadCsv(`cigar-order-${stamp()}.csv`,rows);
-  }
-
-  function exportInventoryHistory(){
-    const orders=getOrders(), rows=[['Purchase Date','Order ID','Cigar / Item','Vitola / Size','Quantity','Price / Stick EGP','Purchase Total EGP','USDT/EGP Rate','Rate Source','Allocation Mode']];
-    // Cloud history is most reliably reconstructed from saved orders/order_items.
-    orders.forEach((o,oi)=>{
-      const orderId=o.id||`order-${oi+1}`;
-      (o.items||[]).forEach(x=>rows.push([
-        o.created_at||o.date||'',orderId,o.supplier||'',x.cigar_name_snapshot||x.name||x.label||'',x.vitola_snapshot||x.vitola||'',num(x.quantity||x.qty),moneyCsv(x.price_per_stick_egp||x.price||x.per),moneyCsv(o.calculated_total_egp??o.total_egp??o.total??''),moneyCsv(o.actual_total_egp??o.total_egp??o.total??''),moneyCsv(o.delivery_fee_usd||0),moneyCsv(o.other_fees_usd||0),num(o.usdt_egp_rate||x.rate).toFixed(2),(o.rate_source||x.rateSource||'live')==='manual'?'Manual':'Live',x.allocation_mode||'',x.image_url||''
-      ]));
-    });
-    // Local cigar histories may contain purchases that are not represented as order objects.
-    if(!rows.length>1){ /* no-op; header is always present */ }
-    if(rows.length===1){
-      getCigars().forEach(c=>(c.history||[]).forEach(h=>rows.push([h.date||h.purchased_at||'',h.order_id||'',c.name||'',h.vitola||c.vitola||'',num(h.qty||h.quantity),moneyCsv(h.price||h.price_per_stick_egp),moneyCsv(h.order_total_egp),num(h.rate||h.usdt_egp_rate).toFixed(2),(h.rateSource||h.rate_source||'live')==='manual'?'Manual':'Live',h.allocation_mode||''])));
-    }
-    if(rows.length===1)return alert('There is no inventory purchase history to export yet.');
-    downloadCsv(`cigar-inventory-history-${stamp()}.csv`,rows);
-  }
-
-  function addExportButtons(){
-    const tabs=document.querySelector('.tabs'); if(!tabs||document.getElementById('exportOrderBtn'))return;
-    const wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:0 0 12px';
-    wrap.innerHTML='<button class="btn" id="exportOrderBtn" type="button">↓ Export Current Order CSV</button><button class="btn" id="exportInventoryBtn" type="button">↓ Export Inventory History CSV</button>';
-    tabs.parentNode.insertBefore(wrap,tabs.nextSibling);
-    document.getElementById('exportOrderBtn').addEventListener('click',exportCurrentOrder);
-    document.getElementById('exportInventoryBtn').addEventListener('click',exportInventoryHistory);
-  }
-  window.exportCurrentOrderCsv=exportCurrentOrder;
-  window.exportInventoryHistoryCsv=exportInventoryHistory;
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addExportButtons);else addExportButtons();
+(function(){
+const num=v=>Number(v||0);
+const money=v=>num(v).toFixed(2);
+const cell=v=>{const s=String(v??'');return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+const csv=rows=>'\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n');
+const dl=(name,text,type)=>{const b=new Blob([text],{type});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+const stamp=()=>new Date().toISOString().slice(0,10);
+const current=()=>{try{return Array.isArray(items)?items:[]}catch(e){return[]}};
+const orders=()=>{try{return user&&Array.isArray(cloudOrders)?cloudOrders:(local?.orders||[])}catch(e){return[]}};
+const orderPics=o=>Array.from(new Set([...(Array.isArray(o?.order_image_urls)?o.order_image_urls:[]),o?.order_image_url].filter(Boolean)));
+const itemRows=o=>o?.items||[];
+const itemName=x=>x?.cigar_name_snapshot||x?.cigar||x?.name||x?.label||'Unnamed item';
+const itemQty=x=>num(x?.quantity??x?.qty);
+const itemPrice=x=>num(x?.price_per_stick_egp??x?.price??x?.per);
+const imgUrl=x=>x?.image_url||((Array.isArray(x?.image_urls)&&x.image_urls[0])||'');
+async function fileData(file){if(!file)return '';return await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=rej;r.readAsDataURL(file)})}
+async function remoteData(url){try{const r=await fetch(url,{mode:'cors'});if(!r.ok)throw new Error('fetch');return await fileData(await r.blob())}catch(e){return url||''}}
+const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+async function makeReport(title,meta,list){let body='';for(const o of list){const pics=orderPics(o);body+='<section class="order"><h2>'+esc(o.title||'Order')+'</h2><div class="meta">'+esc(meta(o))+'</div>';if(pics.length){body+='<h3>Whole order pictures</h3><div class="photos">';for(const u of pics)body+='<img src="'+esc(await remoteData(u))+'">';body+='</div>'}body+='<table><thead><tr><th>Picture</th><th>Cigar / Item</th><th>Vitola</th><th>Qty</th><th>Price/stick EGP</th></tr></thead><tbody>';for(const x of itemRows(o)){let u=imgUrl(x);if(!u&&x._imageFile)u=await fileData(x._imageFile);body+='<tr><td>'+(u?'<img class="itempic" src="'+esc(await remoteData(u))+'">':'—')+'</td><td>'+esc(itemName(x))+'</td><td>'+esc(x.vitola_snapshot||x.vitola||'')+'</td><td>'+itemQty(x)+'</td><td>'+money(itemPrice(x))+'</td></tr>'}body+='</tbody></table></section>'}return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>body{font-family:Arial;margin:28px;color:#222}.order{border:1px solid #ccc;border-radius:12px;padding:18px;margin-bottom:22px;page-break-inside:avoid}.meta{color:#555;margin-bottom:12px}.photos{display:flex;gap:10px;flex-wrap:wrap}.photos img{width:180px;height:180px;object-fit:contain;border:1px solid #ddd;border-radius:8px}.itempic{width:70px;height:70px;object-fit:cover;border-radius:6px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left}</style></head><body><h1>'+esc(title)+'</h1><p>Generated '+new Date().toLocaleString()+'</p>'+body+'</body></html>'}
+async function exportCurrentCsv(){const its=current();if(!its.length)return alert('There are no items in the current order to export.');const rows=[['Item','Cigar / Item','Vitola / Size','Quantity','Original USD','Tax USD','Quantity Fee USD','Box Fee USD','Calculated Total EGP','Price / Stick EGP','USDT/EGP Rate','Rate Source','Item Picture URL','Item Picture Filename']];its.forEach((it,i)=>{const as=Array.isArray(it.alloc)&&it.alloc.length?it.alloc:[{name:it.cigar||it.label||'',vitola:it.vitola||'',qty:it.q,price:it.per}];as.forEach(a=>rows.push([i+1,a.name||it.cigar||it.label||'',a.vitola||it.vitola||'',num(a.qty||it.q),money(it.p),money(it.tax),money(it.f),money(it.b),money(it.total),money(a.price??it.per),num(it.rate).toFixed(2),it.rateSource==='manual'?'Manual':'Live',a.image_url||'',a._imageFile?.name||'']))});rows.push([]);rows.push(['Actual amount paid EGP',$('actualPaid')?.value||'','Supplier',$('orderSupplier')?.value||'','Delivery USD',$('orderDelivery')?.value||0,'Other fees USD',$('orderOtherFees')?.value||0]);rows.push(['Whole order picture files',Array.from($('orderPicture')?.files||[]).map(f=>f.name).join(' | ')]);dl('cigar-current-order-'+stamp()+'.csv',csv(rows),'text/csv;charset=utf-8')}
+async function exportInventoryCsv(){const os=orders();if(!os.length)return alert('There is no inventory purchase history to export yet.');const rows=[['Purchase Date','Order ID','Supplier','Cigar / Item','Vitola / Size','Quantity','Price / Stick EGP','Calculated Order EGP','Actual Paid EGP','Delivery USD','Other Fees USD','USDT/EGP Rate','Rate Source','Allocation Mode','Item Picture URL','Whole Order Picture URLs']];os.forEach(o=>itemRows(o).forEach(x=>rows.push([o.created_at||o.date||'',o.id||'',o.supplier||'',itemName(x),x.vitola_snapshot||x.vitola||'',itemQty(x),money(itemPrice(x)),money(o.calculated_total_egp??o.total_egp??0),money(o.actual_total_egp??o.total_egp??0),money(o.delivery_fee_usd),money(o.other_fees_usd),num(o.usdt_egp_rate||x.rate).toFixed(2),(o.rate_source||x.rateSource)==='manual'?'Manual':'Live',x.allocation_mode||'',imgUrl(x),orderPics(o).join(' | ')])));dl('cigar-inventory-history-'+stamp()+'.csv',csv(rows),'text/csv;charset=utf-8')}
+async function exportCurrentHtml(){const its=current();if(!its.length)return alert('There are no items in the current order to export.');const files=Array.from($('orderPicture')?.files||[]);const allocToItems=it=>(Array.isArray(it.alloc)&&it.alloc.length?it.alloc:[{name:it.cigar||it.label||'',vitola:it.vitola||'',qty:it.q,price:it.per}]).map(a=>({cigar_name_snapshot:a.name,vitola_snapshot:a.vitola,quantity:a.qty,price_per_stick_egp:a.price,image_url:a.image_url||'',_imageFile:a._imageFile}));const o={title:'Current Order',created_at:new Date().toISOString(),supplier:$('orderSupplier')?.value||'',actual_total_egp:$('actualPaid')?.value||'',order_image_urls:await Promise.all(files.map(fileData)),items:its.flatMap(allocToItems)};dl('cigar-current-order-'+stamp()+'.html',await makeReport('Cigar Current Order',x=>'Supplier: '+(x.supplier||'—')+' · Actual paid: '+(x.actual_total_egp||'—')+' EGP · '+new Date(x.created_at).toLocaleString(),[o]),'text/html;charset=utf-8')}
+async function exportInventoryHtml(){const os=orders();if(!os.length)return alert('There is no inventory purchase history to export yet.');dl('cigar-inventory-history-'+stamp()+'.html',await makeReport('Cigar Inventory History',o=>'Supplier: '+(o.supplier||'—')+' · Actual paid: '+(o.actual_total_egp??o.total_egp??0)+' EGP · '+new Date(o.created_at||o.date).toLocaleString(),os),'text/html;charset=utf-8')}
+function addButtons(){const tabs=document.querySelector('.tabs');if(!tabs||document.getElementById('exportOrderBtn'))return;const w=document.createElement('div');w.style.cssText='display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:0 0 12px';w.innerHTML='<button class="btn" id="exportOrderBtn">↓ Order CSV</button><button class="btn" id="exportOrderPicturesBtn">↓ Order + Pictures</button><button class="btn" id="exportInventoryBtn">↓ Inventory CSV</button><button class="btn" id="exportInventoryPicturesBtn">↓ Inventory + Pictures</button>';tabs.parentNode.insertBefore(w,tabs.nextSibling);$('exportOrderBtn').onclick=exportCurrentCsv;$('exportOrderPicturesBtn').onclick=exportCurrentHtml;$('exportInventoryBtn').onclick=exportInventoryCsv;$('exportInventoryPicturesBtn').onclick=exportInventoryHtml}
+window.exportCurrentOrderCsv=exportCurrentCsv;window.exportInventoryHistoryCsv=exportInventoryCsv;
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addButtons);else addButtons();
 })();
