@@ -68,6 +68,7 @@ function updateTotals(){const q=current.items.reduce((s,x)=>s+Number(x.quantity|
           usdt_egp_rate:current.order.usdt_egp_rate,
           rate_source:current.order.rate_source,
           image_url:imageUrl,
+          image_urls:imageUrls,
           vitola_snapshot:String(x.vitola_snapshot||'').trim()
         });
       }
