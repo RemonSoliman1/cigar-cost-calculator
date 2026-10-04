@@ -34,9 +34,10 @@ function updateTotals(){const q=current.items.reduce((s,x)=>s+Number(x.quantity|
       const notes=String($('editNotes')?.value||'').trim();
       if(actual<0)throw new Error('Actual amount paid cannot be negative.');
 
-      let orderImageUrl=current.order.order_image_url||null;
-      const orderImageFile=$('editOrderPicture')?.files?.[0];
-      if(orderImageFile)orderImageUrl=await uploadItemImage(orderImageFile,current.order.id,'order');
+      let orderImageUrls=Array.from(new Set([...(Array.isArray(current.order.order_image_urls)?current.order.order_image_urls:[]),current.order.order_image_url].filter(Boolean)));
+      const orderImageFiles=Array.from($('editOrderPicture')?.files||[]);
+      for(const [i,file] of orderImageFiles.entries())orderImageUrls.push(await uploadItemImage(file,current.order.id,'order-'+Date.now()+'-'+i));
+      orderImageUrls=Array.from(new Set(orderImageUrls));
 
       const rows=[];
       const ph=[];
