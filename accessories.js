@@ -34,7 +34,7 @@
   async function upload(file,id){
     if(!file)return null;
     if(file.size>5*1024*1024)throw new Error('Accessory picture must be 5 MB or smaller.');
-    const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+    const fileName=(file&&typeof file.name==='string')?file.name:'image.jpg';const ext=(fileName.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
     const path=user.id+'/accessories/'+id+'.'+ext;
     const {error}=await sb.storage.from('cigar-images').upload(path,file,{cacheControl:'31536000',upsert:true,contentType:file.type});
     if(error)throw error;
