@@ -34,9 +34,9 @@
   async function upload(file,id){
     if(!file)return null;
     if(file.size>5*1024*1024)throw new Error('Accessory picture must be 5 MB or smaller.');
-    const fileName=(file&&typeof file.name==='string')?file.name:'image.jpg';const ext=(fileName.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
-    const path=user.id+'/accessories/'+id+'.'+ext;
-    const {error}=await sb.storage.from('cigar-images').upload(path,file,{cacheControl:'31536000',upsert:true,contentType:file.type});
+    const mime=String(file?.type||'').toLowerCase();const byMime={'image/jpeg':'jpg','image/jpg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'};const name=String(file?.name||'');const dot=name.lastIndexOf('.');const ext=byMime[mime]||(dot>0?name.slice(dot+1).toLowerCase().replace(/[^a-z0-9]/g,''):'jpg')||'jpg';
+    const path=user.id+'/accessories/'+id+'-'+crypto.randomUUID()+'.'+ext;
+    const {error}=await sb.storage.from('cigar-images').upload(path,file,{cacheControl:'31536000',upsert:false,contentType:file.type||('image/'+ext)});
     if(error)throw error;
     return sb.storage.from('cigar-images').getPublicUrl(path).data.publicUrl;
   }
