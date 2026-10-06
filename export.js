@@ -27,14 +27,32 @@ async function exportInventoryHtml(){const os=orders();if(!os.length)return aler
 function exportOrderSummaryCsv(orderList,scope){
   const list=Array.isArray(orderList)?orderList:[];
   if(!list.length)return alert('There are no orders to export.');
-  const cigarCount=o=>{if(o.is_accessory)return 0;const its=Array.isArray(o.items)?o.items:[];if(!its.length)return num(o.total_cigars??o.q);return its.reduce((sum,x)=>sum+(isSampler(x)?num(x.sampler_count??x.quantity??1)*num(x.cigars_per_sampler??1):num(x.quantity??x.qty)),0)};
-  const accessoryCount=o=>o.is_accessory?(o.items||[]).reduce((sum,x)=>sum+num(x.quantity??x.qty),0):0;
+  const itemQuantity=(o,x)=>isSampler(x)?num(x.sampler_count??x.quantity??1)*num(x.cigars_per_sampler??1):num(x.quantity??x.qty);
   const paid=o=>num(o.actual_total_egp??o.total_egp??o.total);
-  const itemSummary=o=>(o.items||[]).map(x=>o.is_accessory?[x.cigar_name_snapshot,x.vitola_snapshot,num(x.quantity)+' units'].filter(Boolean).join(' · '):isSampler(x)?itemName(x)+' · '+num(x.sampler_count||1)+' samplers × '+num(x.cigars_per_sampler||1)+' cigars':itemName(x)+' · '+num(x.quantity??x.qty)+' cigars').join(' | ');
-  const rows=[['Date','Type','Order / purchase ID','Supplier','Items','Cigars (sampler contents counted)','Accessory units','Actual paid (EGP)']];
+  const rows=[['Date','Type','Order / purchase ID','Supplier','Item','Item details','Quantity','Assigned unit price (EGP)','Assigned item total (EGP)','Order actual paid (EGP)','Item picture URLs','Order picture URLs']];
   let cigars=0,accessories=0,totalPaid=0;
-  list.forEach(o=>{const q=cigarCount(o),a=accessoryCount(o),amount=paid(o);cigars+=q;accessories+=a;totalPaid+=amount;rows.push([o.created_at||o.date||'',o.is_accessory?'Accessory purchase':'Cigar order',o.id||'',o.supplier||'',itemSummary(o),q,a,amount.toFixed(2)])});
-  rows.push([]);rows.push(['TOTAL',list.length+' orders / purchases','','','',cigars,accessories,totalPaid.toFixed(2)]);
+  list.forEach(o=>{
+    const items=Array.isArray(o.items)?o.items:[],amount=paid(o),isAccessory=!!o.is_accessory;
+    totalPaid+=amount;
+    const exportItems=items.length?items:[{cigar_name_snapshot:'Unspecified items',quantity:num(o.total_cigars??o.q),price_per_stick_egp:0}];
+    exportItems.forEach((x,i)=>{
+      const sampler=isSampler(x),quantity=isAccessory?num(x.quantity??x.qty):itemQuantity(o,x),unitPrice=num(x.price_per_stick_egp??x.unit_price_egp??x.price);
+      if(isAccessory)accessories+=quantity;else cigars+=quantity;
+      const details=[];
+      if(sampler){details.push(num(x.sampler_count??x.quantity??1)+' samplers × '+num(x.cigars_per_sampler??1)+' cigars/sampler');if(x.sampler_price_mode)details.push('Sampler price: '+(x.sampler_price_mode==='total_order'?'total for all samplers':'per sampler'));if(x.sampler_unit_price_usd!=null)details.push('$'+num(x.sampler_unit_price_usd).toFixed(2)+'/sampler');if(x.sampler_total_price_usd!=null)details.push('$'+num(x.sampler_total_price_usd).toFixed(2)+' sampler total');if(x.sampler_contents)details.push('Contains: '+String(x.sampler_contents).replace(/\r?\n/g,' | '))}
+      else if(isAccessory){if(x.vitola_snapshot)details.push(x.vitola_snapshot);details.push('Accessory units')}
+      else if(x.vitola_snapshot||x.vitola)details.push(x.vitola_snapshot||x.vitola);
+      const name=isAccessory?(x.cigar_name_snapshot||x.name||'Accessory'):itemName(x);
+      const itemPics=imgUrls(x).join(' | '),orderImageUrls=orderPics(o).join(' | ');
+      rows.push([o.created_at||o.date||'',isAccessory?'Accessory':'Cigar',o.id||'',o.supplier||'',name,details.join(' · '),quantity,money(unitPrice),money(quantity*unitPrice),i===0?money(amount):'',itemPics,orderImageUrls]);
+    });
+  });
+  rows.push([]);rows.push(['TOTALS','','','','','', '', '', '', '', '', '']);
+  rows.push(['Total cigars (sampler contents counted)','','','','','',cigars,'','','','','']);
+  rows.push(['Total accessory units','','','','','',accessories,'','','','','']);
+  rows.push(['Total quantity (cigars + accessory units)','','','','','',cigars+accessories,'','','','','']);
+  rows.push(['Orders / purchases','','','','','',list.length,'','','','','']);
+  rows.push(['Total actual paid (EGP)','','','','','','','','',money(totalPaid),'','']);
   dl('cigar-order-summary-'+(scope==='selected'?'selected':'all')+'-'+stamp()+'.csv',csv(rows),'text/csv;charset=utf-8');
 }
 window.exportOrderSummaryCsv=exportOrderSummaryCsv;

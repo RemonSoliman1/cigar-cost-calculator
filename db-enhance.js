@@ -17,6 +17,6 @@
   window.openCigarDetail=openDetail; addModal();
   if(document.readyState!=='loading'){renderDB();addSmartMatcher();}else document.addEventListener('DOMContentLoaded',()=>{renderDB();addSmartMatcher();});
   // Load the CSV export module after the app state has been created.
-  if(!document.querySelector('script[data-cigar-export]')){const s=document.createElement('script');s.src='export.js?v=20261006-2';s.dataset.cigarExport='1';document.head.appendChild(s);}
+  if(!document.querySelector('script[data-cigar-export]')){const s=document.createElement('script');s.src='export.js?v=20261006-3';s.dataset.cigarExport='1';document.head.appendChild(s);}
 })();
 
