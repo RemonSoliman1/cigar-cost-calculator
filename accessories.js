@@ -129,14 +129,14 @@
   }
 
   function showTab(){
-    ['current','hist','db'].forEach(x=>$(x).classList.add('hidden'));
+    ['current','hist','db','salesTracking'].forEach(x=>$(x).classList.add('hidden'));
     a$('accessories').classList.remove('hidden');
-    ['orderTab','historyTab','dbTab'].forEach(x=>$(x).classList.remove('active'));
+    ['orderTab','historyTab','dbTab','salesTrackingTab'].forEach(x=>$(x).classList.remove('active'));
     a$('accessoryTab').classList.add('active');load();
   }
   function hideTab(){a$('accessories')?.classList.add('hidden');a$('accessoryTab')?.classList.remove('active')}
   a$('accessoryTab').onclick=showTab;
-  ['orderTab','historyTab','dbTab'].forEach(id=>a$(id).addEventListener('click',hideTab));
+  ['orderTab','historyTab','dbTab','salesTrackingTab'].forEach(id=>a$(id).addEventListener('click',hideTab));
   ['accQty','accUnit','accFees','accTotalUsd','accRate'].forEach(id=>a$(id).addEventListener('input',calc));
   a$('accPicture').onchange=()=>{A.imageFile=a$('accPicture').files?.[0]||null};
   a$('accSearch').oninput=render;a$('accSave').onclick=save;a$('accWebSearch').onclick=()=>{const q=[a$('accCategory').value,a$('accKeywords').value,a$('accColor').value].filter(Boolean).join(' ');if(!q)return alert('Enter keywords and/or a color first.');window.open('https://www.google.com/search?tbm=shop&q='+encodeURIComponent(q),'_blank','noopener');};a$('accCancel').onclick=reset;a$('accCsv').onclick=csv;
