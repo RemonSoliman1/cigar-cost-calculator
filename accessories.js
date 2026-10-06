@@ -45,7 +45,7 @@
     if(!sb||!user)return;
     const {data,error}=await sb.from('accessory_purchases').select('*').order('purchased_at',{ascending:false});
     if(error){console.error(error);a$('accStatus').textContent='Could not load accessories: '+error.message;return}
-    A.items=data||[]; render();
+    A.items=data||[]; render();if(typeof window.setCloudAccessoryPurchases==='function')window.setCloudAccessoryPurchases(A.items);
   }
 
   function matches(x,q){
@@ -141,9 +141,10 @@
   a$('accPicture').onchange=()=>{A.imageFile=a$('accPicture').files?.[0]||null};
   a$('accSearch').oninput=render;a$('accSave').onclick=save;a$('accWebSearch').onclick=()=>{const q=[a$('accCategory').value,a$('accKeywords').value,a$('accColor').value].filter(Boolean).join(' ');if(!q)return alert('Enter keywords and/or a color first.');window.open('https://www.google.com/search?tbm=shop&q='+encodeURIComponent(q),'_blank','noopener');};a$('accCancel').onclick=reset;a$('accCsv').onclick=csv;
   if(sb){
-    sb.auth.onAuthStateChange((_event,session)=>{if(session?.user){setTimeout(load,0)}else{A.items=[];render()}});
+    sb.auth.onAuthStateChange((_event,session)=>{if(session?.user){setTimeout(load,0)}else{A.items=[];render();if(typeof window.setCloudAccessoryPurchases==='function')window.setCloudAccessoryPurchases([])}});
     sb.auth.getUser().then(({data})=>{if(data.user)setTimeout(load,0)});
   }
   setTimeout(()=>{if(typeof rate==='number'&&rate>0)a$('accRate').value=rate;calc()},200);
   render();
 })();
+
