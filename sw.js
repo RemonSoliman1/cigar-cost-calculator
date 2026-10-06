@@ -1,4 +1,4 @@
-const CACHE='cigar-calc-v31';
+const CACHE='cigar-calc-v32';
 const APP_SHELL=['./','./index.html','./manifest.webmanifest','./sales-tracking.js?v=20261006-3'];
 
 self.addEventListener('install',event=>{
@@ -50,6 +50,7 @@ self.addEventListener('fetch',event=>{
     }))
   );
 });
+
 
 
 
