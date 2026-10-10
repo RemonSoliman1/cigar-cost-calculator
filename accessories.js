@@ -45,7 +45,7 @@
     if(!sb||!user)return;
     const {data,error}=await sb.from('accessory_purchases').select('*').order('purchased_at',{ascending:false});
     if(error){console.error(error);a$('accStatus').textContent='Could not load accessories: '+error.message;return}
-    A.items=data||[]; render();if(typeof window.setCloudAccessoryPurchases==='function')window.setCloudAccessoryPurchases(A.items);
+    A.items=data||[]; render();if(typeof window.setCloudAccessoryPurchases==='function')window.setCloudAccessoryPurchases(A.items);window.renderCustomerSales?.();
   }
 
   function matches(x,q){
@@ -130,13 +130,13 @@
 
   function showTab(){
     ['current','hist','db','salesTracking'].forEach(x=>$(x).classList.add('hidden'));
-    a$('accessories').classList.remove('hidden');
-    ['orderTab','historyTab','dbTab','salesTrackingTab'].forEach(x=>$(x).classList.remove('active'));
+    a$('accessories').classList.remove('hidden');a$('customerOrders')?.classList.add('hidden');
+    ['orderTab','historyTab','dbTab','salesTrackingTab','customerOrdersTab'].forEach(x=>$(x).classList.remove('active'));
     a$('accessoryTab').classList.add('active');load();
   }
   function hideTab(){a$('accessories')?.classList.add('hidden');a$('accessoryTab')?.classList.remove('active')}
   a$('accessoryTab').onclick=showTab;
-  ['orderTab','historyTab','dbTab','salesTrackingTab'].forEach(id=>a$(id).addEventListener('click',hideTab));
+  ['orderTab','historyTab','dbTab','salesTrackingTab','customerOrdersTab'].forEach(id=>a$(id).addEventListener('click',hideTab));
   ['accQty','accUnit','accFees','accTotalUsd','accRate'].forEach(id=>a$(id).addEventListener('input',calc));
   a$('accPicture').onchange=()=>{A.imageFile=a$('accPicture').files?.[0]||null};
   a$('accSearch').oninput=render;a$('accSave').onclick=save;a$('accWebSearch').onclick=()=>{const q=[a$('accCategory').value,a$('accKeywords').value,a$('accColor').value].filter(Boolean).join(' ');if(!q)return alert('Enter keywords and/or a color first.');window.open('https://www.google.com/search?tbm=shop&q='+encodeURIComponent(q),'_blank','noopener');};a$('accCancel').onclick=reset;a$('accCsv').onclick=csv;
@@ -147,4 +147,5 @@
   setTimeout(()=>{if(typeof rate==='number'&&rate>0)a$('accRate').value=rate;calc()},200);
   render();
 })();
+
 

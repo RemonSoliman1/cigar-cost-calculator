@@ -90,6 +90,7 @@
     panel.querySelectorAll('[data-sale-basis]').forEach(select=>select.addEventListener('change',()=>{const line=lines.find(x=>x.key===select.dataset.saleBasis);if(!line)return;line.entry.salePriceBasis=select.value;delete line.entry.legacy;delete line.entry.legacyRevenue;delete line.entry.legacyProfit;delete line.entry.legacyPerPiece;state.entries[line.key]=line.entry;saveState();refreshRow(line);summary()}));
     panel.querySelectorAll('[data-manual-field]').forEach(input=>input.addEventListener('change',()=>{const line=lines.find(x=>x.key===input.dataset.trackKeyRef);if(!line?.manualRow)return;line.manualRow[input.dataset.manualField]=input.value;if(input.dataset.manualField==='type')line.manualRow.unitLabel=input.value==='Accessory'?'accessory unit':'cigar stick';saveState();render()}));
     panel.querySelectorAll('[data-custom-cell]').forEach(input=>input.addEventListener('change',()=>{const line=lines.find(x=>x.key===input.dataset.trackKeyRef);if(!line)return;if(input.dataset.customCell.startsWith('csv-')){line.entry.extra=line.entry.extra||{};const col=columns.find(x=>x.id===input.dataset.customCell);if(col)line.entry.extra[col.header]=input.value}else{line.entry.customCells=line.entry.customCells||{};line.entry.customCells[input.dataset.customCell]=input.value}state.entries[line.key]=line.entry;saveState()}));
+    window.refreshActualSalesSummary?.();
     panel.querySelectorAll('[data-track-photo]').forEach(button=>button.addEventListener('click',()=>{const line=lines.find(x=>x.key===button.dataset.trackPhoto),photos=(line?.itemPics||line?.orderPics||'').split(' | ').filter(Boolean);if(photos.length)window.openPhotoGallery?.(photos)}));
     document.getElementById('salesTrackingAddColumn').onclick=()=>{const header=prompt('Name for the new spreadsheet column:');if(!header?.trim())return;const name=header.trim();if(customColumns().some(x=>normalized(x.header)===normalized(name))||[...BASE_HEADERS,...CALC_HEADERS].some(x=>normalized(x)===normalized(name)))return alert('That column already exists.');state.customColumns.push({id:'custom-'+Date.now(),header:name});saveState();render()};
     document.getElementById('salesTrackingAddRow').onclick=()=>{state.manualRows.push({id:Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7),date:stamp(),type:'Cigar',name:'',supplier:'',quantity:1,unitCost:0,unitLabel:'cigar stick'});saveState();render()};
@@ -149,17 +150,18 @@
     }catch(err){alert('Could not import this CSV: '+(err.message||err))}finally{e.target.value=''}
   }
   function show(){
-    ['current','hist','db','accessories'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));document.getElementById('salesTracking')?.classList.remove('hidden');
-    ['orderTab','historyTab','dbTab','accessoryTab','salesTrackingTab'].forEach(id=>document.getElementById(id)?.classList.remove('active'));document.getElementById('salesTrackingTab')?.classList.add('active');render();
+    ['current','hist','db','accessories','customerOrders'].forEach(id=>document.getElementById(id)?.classList.add('hidden'));document.getElementById('salesTracking')?.classList.remove('hidden');
+    ['orderTab','historyTab','dbTab','accessoryTab','salesTrackingTab','customerOrdersTab'].forEach(id=>document.getElementById(id)?.classList.remove('active'));document.getElementById('salesTrackingTab')?.classList.add('active');render();
   }
   function hide(){document.getElementById('salesTracking')?.classList.add('hidden');document.getElementById('salesTrackingTab')?.classList.remove('active')}
   document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('salesTrackingTab')?.addEventListener('click',show);
-    ['orderTab','historyTab','dbTab','accessoryTab'].forEach(id=>document.getElementById(id)?.addEventListener('click',hide));
+    ['orderTab','historyTab','dbTab','accessoryTab','customerOrdersTab'].forEach(id=>document.getElementById(id)?.addEventListener('click',hide));
   });
   window.renderSalesTracking=render;
   window.salesTrackingIsVisible=()=>!document.getElementById('salesTracking')?.classList.contains('hidden');
 })();
+
 
 
 
