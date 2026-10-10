@@ -20,6 +20,7 @@ create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
+  received_at timestamptz,
   total_cigars integer not null,
   total_egp numeric(14,2) not null,
   average_per_stick_egp numeric(14,2) not null,
@@ -43,6 +44,10 @@ create table if not exists public.order_items (
   allocation_mode text not null check (allocation_mode in ('automatic','manual')),
   created_at timestamptz not null default now()
 );
+
+-- Incoming purchases count toward stock only after receipt is confirmed.
+alter table public.orders add column if not exists received_at timestamptz;
+alter table if exists public.accessory_purchases add column if not exists received_at timestamptz;
 
 create table if not exists public.cigar_price_history (
   id uuid primary key default gen_random_uuid(),
@@ -241,4 +246,3 @@ drop trigger if exists sales_customers_set_updated_at on public.sales_customers;
 create trigger sales_customers_set_updated_at before update on public.sales_customers for each row execute function public.set_updated_at();
 drop trigger if exists sales_orders_set_updated_at on public.sales_orders;
 create trigger sales_orders_set_updated_at before update on public.sales_orders for each row execute function public.set_updated_at();
-
