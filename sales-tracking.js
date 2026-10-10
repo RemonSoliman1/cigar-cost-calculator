@@ -16,9 +16,11 @@
   let loadedKey='',state={entries:{},extraHeaders:[],headerOrder:[],footerRows:[],customColumns:[],manualRows:[]},lines=[],selectedOnly=false;
 
   function storageKey(){return 'cigarSalesTrackingV1:'+(window.user?.id||'local')}
-  function loadState(){const k=storageKey();if(k===loadedKey)return;loadedKey=k;try{state=JSON.parse(localStorage.getItem(k)||'{}')}catch(e){state={}}state.entries=state.entries||{};state.extraHeaders=Array.isArray(state.extraHeaders)?state.extraHeaders:[];state.headerOrder=Array.isArray(state.headerOrder)?state.headerOrder:[];state.footerRows=Array.isArray(state.footerRows)?state.footerRows:[];state.customColumns=Array.isArray(state.customColumns)?state.customColumns:[];state.manualRows=Array.isArray(state.manualRows)?state.manualRows:[]}
+  function readState(key){try{return JSON.parse(localStorage.getItem(key)||'{}')}catch(e){return{}}}
+  function loadState(){const k=storageKey();if(k===loadedKey)return;loadedKey=k;const current=readState(k),local=window.user?readState('cigarSalesTrackingV1:local'):{};state={...local,...current,entries:{...(local.entries||{}),...(current.entries||{})},extraHeaders:current.extraHeaders?.length?current.extraHeaders:(local.extraHeaders||[]),headerOrder:current.headerOrder?.length?current.headerOrder:(local.headerOrder||[]),footerRows:current.footerRows?.length?current.footerRows:(local.footerRows||[]),customColumns:[...(local.customColumns||[]),...(current.customColumns||[])].filter((x,i,a)=>a.findIndex(y=>y.id===x.id||normalized(y.header)===normalized(x.header))===i),manualRows:[...(local.manualRows||[]),...(current.manualRows||[])].filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i)};state.entries=state.entries||{};state.extraHeaders=Array.isArray(state.extraHeaders)?state.extraHeaders:[];state.headerOrder=Array.isArray(state.headerOrder)?state.headerOrder:[];state.footerRows=Array.isArray(state.footerRows)?state.footerRows:[];state.customColumns=Array.isArray(state.customColumns)?state.customColumns:[];state.manualRows=Array.isArray(state.manualRows)?state.manualRows:[];if(window.user&&Object.keys(local.entries||{}).length)localStorage.setItem(k,JSON.stringify(state))}
   function saveState(){loadState();localStorage.setItem(loadedKey,JSON.stringify(state))}
   function itemName(x){const n=x?.cigar_name_snapshot||x?.cigar||x?.name||x?.label||'Unnamed item';return sampler(x)?n+' - Sampler':n}
+  function savedEntry(key,type,item){if(state.entries[key])return state.entries[key];const wanted=normalized(item),matches=Object.entries(state.entries).filter(([oldKey,value])=>{const parts=oldKey.split('|');return parts[1]===type&&parts[2]===wanted&&value&&value.salePrice!=null&&String(value.salePrice).trim()!==''});if(matches.length){const recovered={...matches[0][1]};state.entries[key]=recovered;return recovered}return{}}
   function orderPictures(o){return Array.from(new Set([...(Array.isArray(o?.order_image_urls)?o.order_image_urls:[]),o?.order_image_url].filter(Boolean)))}
   function itemPictures(x){return Array.from(new Set([...(Array.isArray(x?.image_urls)?x.image_urls:[]),x?.image_url].filter(Boolean)))}
   function detailsFor(o,x){
@@ -42,7 +44,7 @@
         const isSampler=!o.is_accessory&&sampler(x),quantity=o.is_accessory?num(x.quantity??x.qty):isSampler?num(x.sampler_count??x.quantity??1)*num(x.cigars_per_sampler??1):num(x.quantity??x.qty);
         const item=itemName(x),details=detailsFor(o,x),type=o.is_accessory?'Accessory':'Cigar',orderId=String(o.id||''),orderKey=orderId||String(o.created_at||o.purchased_at||o.date||'')+'|'+String(o.supplier||''),baseKey=[orderKey,type,normalized(item),normalized(details)].join('|'),occ=seen.get(baseKey)||0;seen.set(baseKey,occ+1);
         const key=baseKey+'|'+occ,unitCost=num(x.price_per_stick_egp??x.price??(quantity?num(o.actual_total_egp??o.total_egp)/quantity:0)),lineCost=unitCost*quantity;
-        const entry=state.entries[key]||{};
+        const entry=savedEntry(key,type,item);
         out.push({key,order:o,item:x,type,orderId,orderKey,date:o.created_at||o.purchased_at||o.date||'',supplier:o.supplier||'',name:o.is_accessory?(x.cigar_name_snapshot||x.name||'Accessory'):item,details,quantity,saleUnits:isSampler?num(x.sampler_count??x.quantity??1):quantity,saleUnitLabel:isSampler?'sampler':o.is_accessory?'accessory unit':'cigar stick',unitCost,lineCost,paid:num(o.actual_total_egp??o.total_egp??o.total),itemPics:itemPictures(x).join(' | '),orderPics:orderPictures(o).join(' | '),entry,isSampler,isAccessory:!!o.is_accessory});
       });
     }
@@ -161,7 +163,6 @@
   window.renderSalesTracking=render;
   window.salesTrackingIsVisible=()=>!document.getElementById('salesTracking')?.classList.contains('hidden');
 })();
-
 
 
 
