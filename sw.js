@@ -1,5 +1,5 @@
-const CACHE='cigar-calc-v37';
-const APP_SHELL=['./','./index.html','./manifest.webmanifest','./sales-tracking.js?v=20261010-1','./sales-orders.js?v=20261010-3','./sales-orders.css?v=20261010-2'];
+const CACHE='cigar-calc-v38';
+const APP_SHELL=['./','./index.html','./manifest.webmanifest','./sales-tracking.js?v=20261010-1','./sales-orders.js?v=20261010-3','./sales-orders.css?v=20261015-1'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(
