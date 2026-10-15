@@ -3,7 +3,7 @@
 /* Keep the customer order form and live stock readable on narrow screens. */
 .customerSalesGrid>* , .salesFormGrid>* {min-width:0}
 .salesFormGrid input,.salesFormGrid select,.salesLine input,.salesLine select {min-width:0;max-width:100%}
-@media(max-width:760px){
+@media(max-width:1024px){
   .customerSalesGrid{grid-template-columns:minmax(0,1fr)}
   .salesFormGrid{grid-template-columns:minmax(0,1fr)}
   .salesFormGrid .full{grid-column:1}
