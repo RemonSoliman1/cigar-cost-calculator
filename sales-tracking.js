@@ -162,6 +162,7 @@
     document.getElementById('salesTrackingTab')?.addEventListener('click',show);
     ['orderTab','historyTab','dbTab','accessoryTab','customerOrdersTab'].forEach(id=>document.getElementById(id)?.addEventListener('click',hide));
   });
+  window.findSavedSalesTrackingPrice=(type,name)=>{loadState();const wanted=normalized(name),matches=Object.entries(state.entries||{}).filter(([key,value])=>{const parts=key.split('|');return parts[1]===type&&normalized(parts[2])===wanted&&value&&value.salePrice!=null&&String(value.salePrice).trim()!==''});for(let i=matches.length-1;i>=0;i--){const price=Number(matches[i][1].salePrice);if(Number.isFinite(price))return price}return null};
   window.renderSalesTracking=render;
   window.salesTrackingIsVisible=()=>!document.getElementById('salesTracking')?.classList.contains('hidden');
 })();
